@@ -9,6 +9,7 @@ edition = "2018"
 [dependencies]
 rusqlite = { version = "*", features = ["bundled"] }
 rand = "0.7.3"
+iced = "0.1.1"
 
 [profile.release]
 opt-level = 3
