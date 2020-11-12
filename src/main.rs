@@ -1,5 +1,4 @@
 use std::path::Path;
-// mod gui;
 mod fs_walker;
 
 fn main() {
@@ -12,5 +11,4 @@ fn main() {
 
     Ok(())
   });
-  // gui::start_app();
 }
