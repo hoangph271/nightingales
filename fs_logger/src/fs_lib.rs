@@ -12,12 +12,15 @@ pub struct FSItem<'a> {
     modified: u64,
 }
 
+// TODO: Global root...?
 // TODO: Key, hash
 
 impl FSItem<'_> {
-    pub fn hash(&self) -> String {
-        let actual = digest::digest(&digest::SHA256, b"hello, world");
-        hex::encode(actual.as_ref())
+    pub fn hash(&self) -> Result<String> {
+        let content = &fs::read(self.key)?;
+        let actual = digest::digest(&digest::SHA256, content);
+
+        Ok(hex::encode(actual.as_ref()))
     }
 
     pub fn from_path(path: &str) -> Result<FSItem> {
@@ -44,14 +47,39 @@ impl FSItem<'_> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
     #[test]
-    fn hash_works() {
-        let path = Path::new("src").join("fs_lib.rs");
+    fn reject_not_exists_file() {
+        let path = Path::new("src").join("test").join("null");
+        let file_path = path.to_str().unwrap();
+
+        match FSItem::from_path(file_path) {
+            Err(e) => match e.kind() {
+                ErrorKind::NotFound => assert!(true),
+                _ => assert!(false),
+            },
+            _ => assert!(false),
+        }
+    }
+
+    #[test]
+    fn hash_not_empty_file_works() {
+        let path = Path::new("src").join("test").join("rust.txt");
         let file_path = path.to_str().unwrap();
 
         let fs_item = FSItem::from_path(file_path).unwrap();
-        let hash = fs_item.hash();
-        assert_eq!(hash.len(), 64)
+        let hash = fs_item.hash().unwrap();
+        assert_eq!(hash, "87ee07307593493b96730dcbb36fd51e9fa4ba189696dad60758e89e6e7750bf");
+    }
+
+    #[test]
+    fn hash_empty_file_works() {
+        let path = Path::new("src").join("test").join("empty.txt");
+        let file_path = path.to_str().unwrap();
+
+        let fs_item = FSItem::from_path(file_path).unwrap();
+        let hash = fs_item.hash().unwrap();
+        assert_eq!(hash, "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855");
     }
 
     #[test]
