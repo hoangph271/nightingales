@@ -1,8 +1,37 @@
 use ring::digest;
 use std::fs;
 use std::io::*;
-use std::path::Path;
+use std::path::{Path, MAIN_SEPARATOR};
 use std::time::SystemTime;
+
+const SEPERATOR: &str = "/";
+
+#[derive(Debug)]
+pub struct OnlineFSItem {
+    fs_item: FSItem,
+}
+impl OnlineFSItem {
+    fn key(&self, fs_root: &str) -> Result<String> {
+        let fs_root = Path::new(fs_root).canonicalize()?;
+        let fs_root = fs_root.to_str().unwrap();
+
+        let suffix = self.fs_item.path.strip_prefix(&fs_root).ok_or_else(|| {
+            std::io::Error::new(
+                std::io::ErrorKind::NotFound,
+                format!("Path NOT exists: {}", self.fs_item.path),
+            )
+        })?;
+
+        Ok(String::from(
+            Path::new(suffix)
+                .iter()
+                .map(|os_str| os_str.to_str().unwrap())
+                .filter(|part| part.to_string() != MAIN_SEPARATOR.to_string())
+                .collect::<Vec<_>>()
+                .join(SEPERATOR),
+        ))
+    }
+}
 
 #[derive(Debug)]
 pub struct FSItem {
@@ -52,6 +81,23 @@ impl FSItem {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn return_correct_online_fs_item_key() {
+        let path = Path::new("src").join("test").join("sub").join("item");
+        let file_path = path.to_str().unwrap();
+
+        let fs_item = FSItem::from_path(file_path).unwrap();
+        let online_fs_item = OnlineFSItem { fs_item };
+
+        let fs_root = Path::new("src").join("test");
+        let fs_root = fs_root.to_str().unwrap();
+
+        match online_fs_item.key(fs_root) {
+            Ok(key) => assert_eq!(key, "sub/item"),
+            Err(_) => assert!(false),
+        }
+    }
 
     #[test]
     fn reject_not_exists_file() {
