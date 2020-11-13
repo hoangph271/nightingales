@@ -7,6 +7,14 @@ use std::time::SystemTime;
 const SEPERATOR: &str = "/";
 
 #[derive(Debug)]
+pub struct LocalSyncRecord {
+    byte_length: u64,
+    modified: u64,
+    is_file: bool,
+    hash: String,
+}
+
+#[derive(Debug)]
 pub struct OnlineFSItem {
     fs_item: FSItem,
 }
