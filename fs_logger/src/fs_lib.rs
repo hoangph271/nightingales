@@ -5,19 +5,16 @@ use std::path::Path;
 use std::time::SystemTime;
 
 #[derive(Debug)]
-pub struct FSItem<'a> {
+pub struct FSItem {
     is_file: bool,
     byte_length: u64,
-    key: &'a str,
     modified: u64,
+    path: String,
 }
 
-// TODO: Global root...?
-// TODO: Key, hash
-
-impl FSItem<'_> {
+impl FSItem {
     pub fn hash(&self) -> Result<String> {
-        let content = &fs::read(self.key)?;
+        let content = &fs::read(&self.path)?;
         let actual = digest::digest(&digest::SHA256, content);
 
         Ok(hex::encode(actual.as_ref()))
@@ -28,19 +25,27 @@ impl FSItem<'_> {
 
         let is_file = metadata.is_file();
         let byte_length = metadata.len();
-        let key = path;
-        let modified = metadata
-            .modified()?
-            .duration_since(SystemTime::UNIX_EPOCH)
-            .expect("Error getting modified")
-            .as_millis() as u64;
 
-        Ok(FSItem {
-            is_file,
-            byte_length,
-            key,
-            modified,
-        })
+        match fs::canonicalize(path)?.to_str() {
+            None => Err(std::io::Error::new(
+                std::io::ErrorKind::NotFound,
+                format!("Path NOT exists: {}", path),
+            )),
+            Some(path) => {
+                let modified = metadata
+                    .modified()?
+                    .duration_since(SystemTime::UNIX_EPOCH)
+                    .expect("Error getting modified")
+                    .as_millis() as u64;
+
+                Ok(FSItem {
+                    is_file,
+                    byte_length,
+                    path: String::from(path),
+                    modified,
+                })
+            }
+        }
     }
 }
 
@@ -69,7 +74,10 @@ mod tests {
 
         let fs_item = FSItem::from_path(file_path).unwrap();
         let hash = fs_item.hash().unwrap();
-        assert_eq!(hash, "87ee07307593493b96730dcbb36fd51e9fa4ba189696dad60758e89e6e7750bf");
+        assert_eq!(
+            hash,
+            "87ee07307593493b96730dcbb36fd51e9fa4ba189696dad60758e89e6e7750bf"
+        );
     }
 
     #[test]
@@ -79,7 +87,10 @@ mod tests {
 
         let fs_item = FSItem::from_path(file_path).unwrap();
         let hash = fs_item.hash().unwrap();
-        assert_eq!(hash, "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855");
+        assert_eq!(
+            hash,
+            "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        );
     }
 
     #[test]
@@ -115,13 +126,21 @@ mod tests {
         let empty_item = FSItem {
             is_file: true,
             byte_length: 0,
-            key: "empty.txt",
+            path: String::from(
+                Path::new("src")
+                    .join("test")
+                    .join("empty.txt")
+                    .canonicalize()
+                    .unwrap()
+                    .to_str()
+                    .unwrap(),
+            ),
             modified: 0,
         };
 
         assert_eq!(empty_item.is_file, true);
         assert_eq!(empty_item.byte_length, 0);
-        assert_eq!(empty_item.key, "empty.txt");
+        assert!(empty_item.path.ends_with("empty.txt"));
         assert_eq!(empty_item.modified, 0);
     }
 }
