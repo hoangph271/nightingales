@@ -1,5 +1,6 @@
-use ring::digest;
+use ring::digest::{digest, Context, SHA256};
 use std::fs;
+use std::fs::File;
 use std::io::*;
 use std::path::{Path, MAIN_SEPARATOR};
 use std::time::SystemTime;
@@ -52,9 +53,31 @@ pub struct FSItem {
 impl FSItem {
     pub fn hash(&self) -> Result<String> {
         let content = &fs::read(&self.path)?;
-        let actual = digest::digest(&digest::SHA256, content);
+        let actual = digest(&SHA256, content);
 
         Ok(hex::encode(actual.as_ref()))
+    }
+
+    pub fn hash_async(&self, on_finish: &dyn FnOnce(Result<String>)) {
+        let mut context = Context::new(&SHA256);
+        let mut file = File::open(&self.path).unwrap(); // TODO: Not this
+        let mut buffer = [0u8; 4096];
+
+        loop {
+            let byte_count = file.read(&mut buffer).unwrap(); // TODO: Not this
+            context.update(&buffer);
+
+            if byte_count < buffer.len() {
+                break;
+            }
+        }
+
+        let multi_part = context.finish();
+        println!("{}", format!("HASH: {:?}", multi_part.as_ref()));
+
+        // on_finish(Ok(
+        //     hex::encode(multi_part.as_ref())
+        // ))
     }
 
     pub fn from_path(path: &str) -> Result<FSItem> {
@@ -122,6 +145,22 @@ mod tests {
     }
 
     #[test]
+    fn hash_async_not_empty_file_works() {
+        let path = Path::new("src").join("test").join("rust.txt");
+        let file_path = path.to_str().unwrap();
+
+        let fs_item = FSItem::from_path(file_path).unwrap();
+
+        fs_item.hash_async(&|result| {
+            let hash = result.unwrap();
+            assert_eq!(
+                hash,
+                "5e42e3f9f2b13f0cf0ec66feb083ca41740075be887456023a7f41dbd6cd54ed"
+            );
+        });
+    }
+
+    #[test]
     fn hash_not_empty_file_works() {
         let path = Path::new("src").join("test").join("rust.txt");
         let file_path = path.to_str().unwrap();
@@ -130,7 +169,7 @@ mod tests {
         let hash = fs_item.hash().unwrap();
         assert_eq!(
             hash,
-            "87ee07307593493b96730dcbb36fd51e9fa4ba189696dad60758e89e6e7750bf"
+            "5e42e3f9f2b13f0cf0ec66feb083ca41740075be887456023a7f41dbd6cd54ed"
         );
     }
 
