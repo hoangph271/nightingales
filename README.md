@@ -1,0 +1,3 @@
+# nightingales
+
+Me learning Rust...! :">
